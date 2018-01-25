@@ -336,6 +336,23 @@ private:
 
 };  // class DestroyTask
 
+/**
+ * Background object for async count,
+ */
+
+class CountTask : public WorkTask
+{
+public:
+    CountTask(ErlNifEnv *_caller_env,
+            ERL_NIF_TERM _caller_ref,
+            DbObjectPtr_t & _db_handle);
+
+    virtual ~CountTask();
+
+    virtual work_result DoWork();
+
+};  // class CountTask
+
 
 
 } // namespace eleveldb

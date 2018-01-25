@@ -592,6 +592,36 @@ DestroyTask::DoWork()
 
 }   // DestroyTask::DoWork()
 
+/**
+ * CountTask functions
+ */
+
+CountTask::CountTask(ErlNifEnv *_caller_env,
+                 ERL_NIF_TERM _caller_ref,
+                 DbObjectPtr_t & _db_handle)
+    : WorkTask(_caller_env, _caller_ref, _db_handle)
+{}
+
+CountTask::~CountTask() {}
+
+work_result
+CountTask::DoWork()
+{
+
+    uint64_t cnt = 0;
+
+    leveldb::Iterator* it = m_DbPtr->m_Db->NewIterator(leveldb::ReadOptions());
+    for (it->SeekToFirst(); it->Valid(); it->Next()) {
+        cnt++;
+    }
+    leveldb::Status status = it->status();
+    delete it;
+    if(!status.ok()){
+        return work_result(local_env(), ATOM_ERROR, status);
+    }
+
+    return work_result(local_env(), ATOM_OK, enif_make_uint64(local_env_, cnt));
+}
 
 } // namespace eleveldb
 
