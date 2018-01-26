@@ -43,6 +43,8 @@
          iterator_move/2,
          iterator_close/1]).
 
+-export([count/1]).
+
 -export([property_cache/2,
          property_cache_get/1,
          property_cache_flush/0,
@@ -250,6 +252,16 @@ iterator_close(IRef) ->
     ?WAIT_FOR_REPLY(CallerRef).
 
 async_iterator_close(_CallerRef, _IRef) ->
+    erlang:nif_error({error, not_loaded}).
+
+%% Iterating over all records in the database and return the number of records.
+-spec count(db_ref()) -> {ok, non_neg_integer()} | {error, any()}.
+count(Ref) ->
+    CallerRef = make_ref(),
+    async_count(CallerRef, Ref),
+    ?WAIT_FOR_REPLY(CallerRef).
+
+async_count(_CallerRef, _Ref) ->
     erlang:nif_error({error, not_loaded}).
 
 -type fold_fun() :: fun(({Key::binary(), Value::binary()}, any()) -> any()).
@@ -563,6 +575,7 @@ test_open(TestDir) ->
     ?assertEqual(ok, ?MODULE:put(Ref, <<"abc">>, <<"123">>, [])),
     ?assertEqual({ok, <<"123">>}, ?MODULE:get(Ref, <<"abc">>, [])),
     ?assertEqual(not_found, ?MODULE:get(Ref, <<"def">>, [])),
+    ?assertEqual({ok, 1}, ?MODULE:count(Ref)),
     assert_close(Ref).
 
 test_open_many(TestDir, HowMany) ->
@@ -584,7 +597,8 @@ test_open_many(TestDir, HowMany) ->
         end, WorkSet),
     lists:foreach(
         fun({Ref, Key, Val}) ->
-            ?assertEqual({ok, Val}, ?MODULE:get(Ref, Key, []))
+            ?assertEqual({ok, Val}, ?MODULE:get(Ref, Key, [])),
+            ?assertEqual({ok, 1}, ?MODULE:count(Ref))
         end, WorkSet),
     lists:foreach(fun assert_close/1, [R || {R, _, _} <- WorkSet]).
 
@@ -601,6 +615,7 @@ test_fold(TestDir) ->
     ?assertEqual(
         [{<<"abc">>, <<"123">>}, {<<"def">>, <<"456">>}, {<<"hij">>, <<"789">>}],
         lists:reverse(?MODULE:fold(Ref, fun accumulate/2, [], []))),
+    ?assertEqual({ok, 3}, ?MODULE:count(Ref)),
     assert_close(Ref).
 
 test_fold_keys(TestDir) ->
@@ -711,6 +726,7 @@ run_load(TestDir, IntSeq) ->
         fun({Key, Val}) ->
             ?assertEqual({ok, Val}, ?MODULE:get(Ref, Key, []))
         end, KVOut),
+    ?assertEqual({ok, length(IntSeq)}, ?MODULE:count(Ref)),
     assert_close(Ref).
 
 %% ===================================================================

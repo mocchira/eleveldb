@@ -80,6 +80,8 @@ static ErlNifFunc nif_funcs[] =
 
     {"async_iterator_move", 3, eleveldb::async_iterator_move},
 
+    {"async_count", 2, eleveldb::async_count},
+
     {"property_cache", 2, eleveldb::property_cache},
     {"property_cache_get", 1, eleveldb::property_cache_get},
     {"property_cache_flush", 0, eleveldb::property_cache_flush},
@@ -1032,6 +1034,32 @@ async_iterator_move(
     return ret_term;
 
 }   // async_iter_move
+
+ERL_NIF_TERM
+async_count(
+    ErlNifEnv* env,
+    int argc,
+    const ERL_NIF_TERM argv[])
+{
+    const ERL_NIF_TERM& caller_ref  = argv[0];
+    const ERL_NIF_TERM& dbh_ref     = argv[1];
+
+    ReferencePtr<DbObject> db_ptr;
+
+    db_ptr.assign(DbObject::RetrieveDbObject(env, dbh_ref));
+
+    if(NULL==db_ptr.get() || 0!=db_ptr->GetCloseRequested())
+     {
+        return enif_make_badarg(env);
+     }
+
+    // likely useless
+    if(NULL == db_ptr->m_Db)
+        return send_reply(env, caller_ref, error_einval(env));
+
+    eleveldb::WorkTask *work_item = new eleveldb::CountTask(env, caller_ref, db_ptr);
+    return submit_to_thread_queue(work_item, env, caller_ref);
+}   // async_count
 
 
 ERL_NIF_TERM
