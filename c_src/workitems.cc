@@ -623,6 +623,48 @@ CountTask::DoWork()
     return work_result(local_env(), ATOM_OK, enif_make_uint64(local_env_, cnt));
 }
 
+/**
+ * FirstNTask functions
+ */
+
+FirstNTask::FirstNTask(ErlNifEnv *_caller_env,
+                 ERL_NIF_TERM _caller_ref,
+                 DbObjectPtr_t & _db_handle,
+                 unsigned long _number_of_recs)
+    : WorkTask(_caller_env, _caller_ref, _db_handle),
+    _number_of_recs(_number_of_recs)
+{}
+
+FirstNTask::~FirstNTask() {}
+
+work_result
+FirstNTask::DoWork()
+{
+
+    ERL_NIF_TERM tail = enif_make_list(local_env(), 0);
+    ERL_NIF_TERM head;
+    uint64_t cnt = 0;
+
+    leveldb::Iterator* it = m_DbPtr->m_Db->NewIterator(leveldb::ReadOptions());
+    for (it->SeekToFirst(); it->Valid(); it->Next()) {
+        // add a record as a tuble to the returned list
+        head = enif_make_tuple2(local_env(),
+                                slice_to_binary(local_env(), it->key()),
+                                slice_to_binary(local_env(), it->value()));
+        tail = enif_make_list_cell(local_env(), head, tail);
+        cnt++;
+        // Once the iterator reaches the Nth record, exit the loop.
+        if (cnt == _number_of_recs) break;
+    }
+    leveldb::Status status = it->status();
+    delete it;
+    if(!status.ok()){
+        return work_result(local_env(), ATOM_ERROR, status);
+    }
+
+    return work_result(local_env(), ATOM_OK, tail);
+}
+
 } // namespace eleveldb
 
 

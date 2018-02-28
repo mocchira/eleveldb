@@ -353,6 +353,26 @@ public:
 
 };  // class CountTask
 
+/**
+ * Background object for async first_n,
+ */
+
+class FirstNTask : public WorkTask
+{
+protected:
+    unsigned long _number_of_recs;
+
+public:
+    FirstNTask(ErlNifEnv *_caller_env,
+            ERL_NIF_TERM _caller_ref,
+            DbObjectPtr_t & _db_handle,
+            unsigned long _number_of_recs);
+
+    virtual ~FirstNTask();
+
+    virtual work_result DoWork();
+
+};  // class FirstNTask
 
 
 } // namespace eleveldb

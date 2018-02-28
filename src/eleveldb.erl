@@ -43,7 +43,8 @@
          iterator_move/2,
          iterator_close/1]).
 
--export([count/1]).
+-export([count/1,
+         first_n/2]).
 
 -export([property_cache/2,
          property_cache_get/1,
@@ -262,6 +263,16 @@ count(Ref) ->
     ?WAIT_FOR_REPLY(CallerRef).
 
 async_count(_CallerRef, _Ref) ->
+    erlang:nif_error({error, not_loaded}).
+
+%% Retrieving the first N records in the database and return it.
+-spec first_n(db_ref(), pos_integer()) -> {ok, list({binary(), binary()})} | {error, any()}.
+first_n(Ref, N) ->
+    CallerRef = make_ref(),
+    async_first_n(CallerRef, Ref, N),
+    ?WAIT_FOR_REPLY(CallerRef).
+
+async_first_n(_CallerRef, _Ref, _N) ->
     erlang:nif_error({error, not_loaded}).
 
 -type fold_fun() :: fun(({Key::binary(), Value::binary()}, any()) -> any()).
@@ -576,6 +587,8 @@ test_open(TestDir) ->
     ?assertEqual({ok, <<"123">>}, ?MODULE:get(Ref, <<"abc">>, [])),
     ?assertEqual(not_found, ?MODULE:get(Ref, <<"def">>, [])),
     ?assertEqual({ok, 1}, ?MODULE:count(Ref)),
+    ?assertEqual({ok, [{<<"abc">>, <<"123">>}]}, ?MODULE:first_n(Ref, 1)),
+    ?assertEqual({ok, [{<<"abc">>, <<"123">>}]}, ?MODULE:first_n(Ref, 100)),
     assert_close(Ref).
 
 test_open_many(TestDir, HowMany) ->
@@ -598,7 +611,9 @@ test_open_many(TestDir, HowMany) ->
     lists:foreach(
         fun({Ref, Key, Val}) ->
             ?assertEqual({ok, Val}, ?MODULE:get(Ref, Key, [])),
-            ?assertEqual({ok, 1}, ?MODULE:count(Ref))
+            ?assertEqual({ok, 1}, ?MODULE:count(Ref)),
+            ?assertEqual({ok, [{Key, Val}]}, ?MODULE:first_n(Ref, 1)),
+            ?assertEqual({ok, [{Key, Val}]}, ?MODULE:first_n(Ref, 100))
         end, WorkSet),
     lists:foreach(fun assert_close/1, [R || {R, _, _} <- WorkSet]).
 
@@ -616,6 +631,8 @@ test_fold(TestDir) ->
         [{<<"abc">>, <<"123">>}, {<<"def">>, <<"456">>}, {<<"hij">>, <<"789">>}],
         lists:reverse(?MODULE:fold(Ref, fun accumulate/2, [], []))),
     ?assertEqual({ok, 3}, ?MODULE:count(Ref)),
+    ?assertEqual({ok, [{<<"abc">>, <<"123">>}]}, ?MODULE:first_n(Ref, 1)),
+    ?assertEqual({ok, [{<<"hij">>, <<"789">>},{<<"def">>, <<"456">>},{<<"abc">>, <<"123">>}]}, ?MODULE:first_n(Ref, 100)),
     assert_close(Ref).
 
 test_fold_keys(TestDir) ->
@@ -727,6 +744,14 @@ run_load(TestDir, IntSeq) ->
             ?assertEqual({ok, Val}, ?MODULE:get(Ref, Key, []))
         end, KVOut),
     ?assertEqual({ok, length(IntSeq)}, ?MODULE:count(Ref)),
+    {ok, Records1} = ?MODULE:first_n(Ref, 1),
+    ?assertEqual(1, length(Records1)),
+    {ok, Records2} = ?MODULE:first_n(Ref, 10),
+    ?assertEqual(10, length(Records2)),
+    {ok, Records3} = ?MODULE:first_n(Ref, length(IntSeq)),
+    ?assertEqual(length(IntSeq), length(Records3)),
+    {ok, Records4} = ?MODULE:first_n(Ref, length(IntSeq) + 999),
+    ?assertEqual(length(IntSeq), length(Records4)),
     assert_close(Ref).
 
 %% ===================================================================
